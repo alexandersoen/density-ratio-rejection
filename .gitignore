@@ -1,5 +1,7 @@
-# Ignore the res dir
+# Ignore the dirs from outputs
 res/
+log/
+json_res/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

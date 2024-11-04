@@ -10,12 +10,14 @@ import rej.classifier as classifier
 import rej.loss as L
 import rej.rejector as rejector
 from rej.augment import add_label_noise
-from rej.baseline.css import CSSReject, CSSurrogateMulticlass
-from rej.baseline.defer import Defer, DeferReject
-from rej.baseline.gce import GCEConsistent, GCEConsistentReject
-from rej.baseline.predrej import PredictReject
-from rej.data import (load_cifar10, load_gas_drift, load_har, load_mnist,
-                      load_octmnist, load_organmnist)
+from rej.data import (
+    load_cifar10,
+    load_gas_drift,
+    load_har,
+    load_mnist,
+    load_octmnist,
+    load_organmnist,
+)
 from rej.utils import SummarizePerformance, summarize_performance_cpe
 
 DATASETS_GETTER = {
@@ -164,12 +166,6 @@ def parse() -> argparse.Namespace:
         help="list of lamb to train",
     )
     parser.add_argument(
-        "--skip-baselines",
-        action="store_true",
-        help="do not calculate over baselines",
-    )
-
-    parser.add_argument(
         "--save-path",
         type=str,
         default="res.json",
@@ -205,9 +201,7 @@ if __name__ == "__main__":
         plotting_data = {}
 
         # Save sub-folder
-        save_sub = pathlib.Path(
-            f"{args.dataset}_{args.noise_rate}", f"fold_{fold_idx}"
-        )
+        save_sub = pathlib.Path(f"{args.dataset}_{args.noise_rate}", f"fold_{fold_idx}")
 
         # Random seed
         print(f"using random seed {args.seed}")
@@ -222,9 +216,7 @@ if __name__ == "__main__":
 
         # Torch stuff
         if not args.no_test_noise:
-            test_dataset = add_label_noise(
-                test_dataset, noise_rate=args.noise_rate
-            )
+            test_dataset = add_label_noise(test_dataset, noise_rate=args.noise_rate)
 
         # DataLoaders
         test_loader = torch.utils.data.DataLoader(test_dataset, **test_kwargs)
@@ -251,17 +243,13 @@ if __name__ == "__main__":
                 continue
 
             kl_rej.normalized = True
-            for t in trange(
-                1, args.num_tau_increments, desc=f"kl_rej_lamb_{lamb}"
-            ):
+            for t in trange(1, args.num_tau_increments, desc=f"kl_rej_lamb_{lamb}"):
                 tau = t / args.num_tau_increments
 
                 kl_rej_summary = summarize_performance_cpe(
                     clf, kl_rej, tau, device, test_loader
                 )
-                plotting_data[f"kl_rej_lamb_{lamb}"][tau] = report(
-                    kl_rej_summary
-                )
+                plotting_data[f"kl_rej_lamb_{lamb}"][tau] = report(kl_rej_summary)
 
             for alpha in args.alpha_rej:
                 alpha_name = f"alpha_{alpha:.3f}_rej_lamb_{lamb}"
@@ -285,115 +273,6 @@ if __name__ == "__main__":
                         clf, alpha_rej, tau, device, test_loader
                     )
                     plotting_data[alpha_name][tau] = report(alpha_rej_summary)
-
-        if not args.skip_baselines:
-            print("Processing baselines")
-
-            # Load and test Prediction-Rejection baseline
-            plotting_data["pred_rej"] = {}
-            for i in trange(1, args.num_tau_increments, desc="pred_rej"):
-                c = i / (2 * args.num_tau_increments)
-
-                pred_rej = PredictReject(clf, c).to(device)
-
-                try:
-                    pred_rej.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-                except:
-                    continue
-
-                pred_rej_summary = summarize_performance_cpe(
-                    clf, pred_rej, c, device, test_loader
-                )
-                plotting_data["pred_rej"][c] = report(pred_rej_summary)
-
-            plotting_data["css"] = {}
-            for i in trange(1, args.num_tau_increments, desc="css"):
-                c = i / (2 * args.num_tau_increments)
-                css_model = CSSurrogateMulticlass(args.dataset, c).to(device)
-                css_rejector = CSSReject(css_model)
-
-                try:
-                    css_model.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-                    css_rejector.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-                except:
-                    continue
-
-                css_summary = summarize_performance_cpe(
-                    css_model, css_rejector, c, device, test_loader
-                )
-
-                plotting_data["css"][c] = report(css_summary)
-
-            plotting_data["defer"] = {}
-            for i in trange(1, args.num_tau_increments, desc="defer"):
-                c = i / (2 * args.num_tau_increments)
-                defer_model = Defer(args.dataset, c).to(device)
-                defer_rejector = DeferReject(defer_model)
-
-                try:
-                    defer_model.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-                    defer_rejector.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-
-                    defer_summary = summarize_performance_cpe(
-                        defer_model, defer_rejector, c, device, test_loader
-                    )
-                except:
-                    continue
-
-                plotting_data["defer"][c] = report(defer_summary)
-
-            plotting_data["gce"] = {}
-            for i in trange(1, args.num_tau_increments, desc="gce"):
-                c = i / (2 * args.num_tau_increments)
-                gce_model = GCEConsistent(args.dataset, c).to(device)
-                gce_rejector = GCEConsistentReject(gce_model)
-
-                try:
-                    gce_model.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-                    gce_rejector.load(
-                        args.model_folder,
-                        save_sub,
-                        device,
-                        force_ordering=True,
-                    )
-                except:
-                    continue
-
-                gce_summary = summarize_performance_cpe(
-                    gce_model, gce_rejector, c, device, test_loader
-                )
-
-                plotting_data["gce"][c] = report(gce_summary)
 
         plotting_data_list.append(plotting_data)
 
