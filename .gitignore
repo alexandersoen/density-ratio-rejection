@@ -1,3 +1,6 @@
+# Ignore the res dir
+res/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
